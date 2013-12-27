@@ -1,14 +1,16 @@
 <?php
 
+require_once BAIDU_BCS_SDK_DIR . '/bcs.class.php';
+
 /**
- * 百度云存储插件类。
+ * 百度云存储管理类。
  * 
  * 使用百度云存储API上传媒体文件。
  * 
  * @author Coda
  *
  */
-class Baidu_BCS_Plugin {
+class Baidu_BCS_Admin {
 
 	/**
 	 * @var 插件slug
@@ -39,18 +41,17 @@ class Baidu_BCS_Plugin {
 	 * 构造函数
 	 */
 	function __construct() {
-		if ( is_admin() ) {
-			add_action( 'admin_menu', array( $this, 'admin_menu' ) );
 			add_action( 'admin_init', array( $this, 'admin_init' ) );
+			add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 			add_filter( 'wp_handle_upload', array( $this, 'wp_handle_upload' ) );
 			add_filter( 'wp_generate_attachment_metadata', array( $this, 'wp_generate_attachment_metadata' ) );
-		}
+			add_filter('option_upload_url_path', array($this, 'option_upload_url_path'));
 	}
 
 	/**
-	 * admin_menu动作
+	 * 添加管理员菜单
 	 */
-	function admin_menu() {
+	function add_admin_menu() {
 		add_options_page( 
 			'百度云存储设置', 
 			'百度云存储', 
@@ -58,9 +59,13 @@ class Baidu_BCS_Plugin {
 			self::PLUGIN_SLUG, 
 			array( $this, 'display_settings_page' ) );
 	}
+	
+	function option_upload_url_path($url) {
+		return 'http://' . BaiduBCS::DEFAULT_URL . '/' . $this->get_bucket_name();
+	}
 
 	/**
-	 * admin_init动作
+	 * 管理员初始化
 	 */
 	function admin_init() {
 		$this->register_settings();
@@ -140,7 +145,6 @@ class Baidu_BCS_Plugin {
 	 */
 	function get_BaiduBCS() {
 		if ( ! $this->baiduBCS ) {
-			require_once BAIDU_BCS_SDK_DIR . '/bcs.class.php';
 			$this->baiduBCS = new BaiduBCS();
 		}
 		return $this->baiduBCS;

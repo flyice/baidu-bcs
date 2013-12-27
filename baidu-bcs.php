@@ -1,7 +1,7 @@
 <?php
 
 /**
- Plugin Name: 百度云存储
+Plugin Name: 百度云存储
 Plugin URI:
 Description: 上传附件到百度云存储。
 Version: 0.1

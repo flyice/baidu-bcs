@@ -90,6 +90,7 @@ class Baidu_BCS_Plugin {
 			$file['error'] = '上传文件失败,请检查';
 		}
 		
+		
 		return $file;
 	}
 

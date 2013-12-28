@@ -104,7 +104,7 @@ class Baidu_BCS_Plugin {
 			?>
 <div class="updated">
 	<p>
-		请先到<a
+		请前往<a
 			href="options-general.php?page=<?php echo $this->plugin_name; ?>">百度云存储设置</a>页面中设置bucket名
 	</p>
 </div>
@@ -125,7 +125,8 @@ class Baidu_BCS_Plugin {
 	}
 
 	/**
-	 * 获取bucket路径
+	 * option_upload_url_path过滤器
+	 * 
 	 * @param string $url
 	 * @return string
 	 */

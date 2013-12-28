@@ -6,15 +6,10 @@ require_once BAIDU_BCS_SDK_DIR . '/bcs.class.php';
  * 
  * 使用百度云存储API上传媒体文件。
  * 
- * @author Coda
+ * @author flyice
  *
  */
 class Baidu_BCS_Plugin {
-
-	/**
-	 * @var 插件slug
-	 */
-	const PLUGIN_SLUG = 'baidu-bcs';
 
 	/**
 	 * @var 选项组名
@@ -37,19 +32,29 @@ class Baidu_BCS_Plugin {
 	var $baiduBCS = null;
 
 	/**
-	 * 构造函数
+	 * @var 插件名
 	 */
-	function __construct() {
-		$bucket_name = $this->get_bucket_name();
+	var $plugin_name = null;
+
+	/**
+	 * 构造函数
+	 * 
+	 * @param string $plugin_file 插件文件
+	 */
+	function __construct( $plugin_file ) {
+		$this->plugin_name = plugin_basename( $plugin_file );
+		$this->bucket_name = get_option( self::OPTION_BUCKET_NAME );
 		
-		if ( $bucket_name ) {
+		if ( $this->bucket_name ) {
 			add_filter( 'option_upload_url_path', array( $this, 'option_upload_url_path' ) );
 		}
 		
 		if ( is_admin() ) {
 			add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 			add_action( 'admin_init', array( $this, 'register_settings' ) );
-			if ( $bucket_name ) {
+			add_filter( 'plugin_action_links_' . $this->plugin_name, array( $this, 'plugin_action_links' ) );
+			
+			if ( $this->bucket_name ) {
 				add_filter( 'wp_handle_upload', array( $this, 'wp_handle_upload' ) );
 				add_filter( 'wp_generate_attachment_metadata', array( $this, 'wp_generate_attachment_metadata' ) );
 				add_filter( 'wp_delete_file', array( $this, 'wp_delete_file' ) );
@@ -57,6 +62,18 @@ class Baidu_BCS_Plugin {
 				add_action( 'admin_notices', array( $this, 'admin_notices' ) );
 			}
 		}
+	}
+
+	/**
+	 * 添加插件设置链接
+	 * 
+	 * @param array $links
+	 * @return array
+	 */
+	function plugin_action_links( $links ) {
+		$links[] = '<a href="' . get_admin_url( null, 'options-general.php?page=' . $this->plugin_name . '">设置</a>' );
+		
+		return $links;
 	}
 
 	/**
@@ -78,15 +95,21 @@ class Baidu_BCS_Plugin {
 	 * @param string $object
 	 */
 	function delete_file_from_bcs( $object ) {
-		$this->get_BaiduBCS()->delete_object( $this->get_bucket_name(), $object );
+		$this->get_BaiduBCS()->delete_object( $this->bucket_name, $object );
 	}
 
 	function admin_notices() {
-		?>
+		global $pagenow;
+		if ( $pagenow == 'plugins.php' ) {
+			?>
 <div class="updated">
-	<p>请先设置bucket名</p>
+	<p>
+		请先到<a
+			href="options-general.php?page=<?php echo $this->plugin_name; ?>">百度云存储设置</a>页面中设置bucket名
+	</p>
 </div>
 <?php
+		}
 	}
 
 	/**
@@ -97,7 +120,7 @@ class Baidu_BCS_Plugin {
 			'百度云存储设置', 
 			'百度云存储', 
 			'manage_options', 
-			self::PLUGIN_SLUG, 
+			$this->plugin_name, 
 			array( $this, 'display_settings_page' ) );
 	}
 
@@ -107,7 +130,7 @@ class Baidu_BCS_Plugin {
 	 * @return string
 	 */
 	function option_upload_url_path( $url ) {
-		return 'http://' . BaiduBCS::DEFAULT_URL . '/' . $this->get_bucket_name();
+		return 'http://' . BaiduBCS::DEFAULT_URL . '/' . $this->bucket_name;
 	}
 
 	/**
@@ -177,9 +200,10 @@ class Baidu_BCS_Plugin {
 	 * @param boolean $public 是否为公开文件
 	 * @return boolean 成功返回 true, 否则为false
 	 */
-	function upload_file_to_bcs( $object, $file, $public = true ) {
+	function upload_file_to_bcs( $object, $file ) {
+		$opt = array();
 		$res = $this->get_BaiduBCS()->create_object( 
-			$this->get_bucket_name(), 
+			$this->bucket_name, 
 			$object, 
 			$file, 
 			array( 'acl' => BaiduBCS::BCS_SDK_ACL_TYPE_PUBLIC_READ ) );
@@ -194,20 +218,7 @@ class Baidu_BCS_Plugin {
 	 * @return string
 	 */
 	function get_object_url( $object ) {
-		return 'http://' . BaiduBCS::DEFAULT_URL . '/' . $this->get_bucket_name() . $object;
-	}
-
-	/**
-	 * 获取bucket名
-	 * 
-	 * @return string
-	 */
-	function get_bucket_name() {
-		if ( ! $this->bucket_name ) {
-			$this->bucket_name = get_option( self::OPTION_BUCKET_NAME );
-		}
-		
-		return $this->bucket_name;
+		return 'http://' . BaiduBCS::DEFAULT_URL . '/' . $this->bucket_name . $object;
 	}
 
 	/**
@@ -265,7 +276,7 @@ class Baidu_BCS_Plugin {
 						id="<?php echo self::OPTION_BUCKET_NAME; ?>">
         <?php
 			foreach ( $names as $value ) {
-				$selected = ( $value == $this->get_bucket_name() ) ? 'selected="selected"' : '';
+				$selected = ( $value == $this->bucket_name ) ? 'selected="selected"' : '';
 				?><option value="">请选择</option>
 							<option value="<?php echo $value; ?>" <?php echo $selected; ?>><?php echo $value; ?></option><?php
 			}

@@ -3,9 +3,9 @@
 /**
 Plugin Name: 百度云存储
 Plugin URI:
-Description: 上传附件到百度云存储。
+Description: WordPress百度云存储支持。
 Version: 0.1
-Author: Coda
+Author: flyice
 Author URI:
 License: GPLv2
 */
@@ -20,4 +20,4 @@ if ( ! defined( 'BAIDU_BCS_SDK_DIR' ) )
 
 require_once BAIDU_BCS_INC_DIR . '/class-baidu-bcs-plugin.php';
 
-new Baidu_BCS_Plugin();
+new Baidu_BCS_Plugin(__FILE__);

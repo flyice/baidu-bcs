@@ -42,16 +42,16 @@ class Baidu_BCS_Admin {
 	 */
 	function __construct() {
 			add_action( 'admin_init', array( $this, 'admin_init' ) );
-			add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
+			add_action( 'admin_menu', array( $this, 'admin_menu' ) );
 			add_filter( 'wp_handle_upload', array( $this, 'wp_handle_upload' ) );
 			add_filter( 'wp_generate_attachment_metadata', array( $this, 'wp_generate_attachment_metadata' ) );
 			add_filter('option_upload_url_path', array($this, 'option_upload_url_path'));
 	}
 
 	/**
-	 * 添加管理员菜单
+	 * 添加设置菜单
 	 */
-	function add_admin_menu() {
+	function admin_menu() {
 		add_options_page( 
 			'百度云存储设置', 
 			'百度云存储', 
@@ -60,6 +60,11 @@ class Baidu_BCS_Admin {
 			array( $this, 'display_settings_page' ) );
 	}
 	
+	/**
+	 * 获取bucket路径
+	 * @param string $url
+	 * @return string
+	 */
 	function option_upload_url_path($url) {
 		return 'http://' . BaiduBCS::DEFAULT_URL . '/' . $this->get_bucket_name();
 	}
@@ -80,6 +85,8 @@ class Baidu_BCS_Admin {
 
 	/**
 	 * wp_handle_upload过滤器
+	 * 
+	 * 将上传至本地的文件传至百度云存储
 	 * 
 	 * @param array $file
 	 * @return array
@@ -102,10 +109,31 @@ class Baidu_BCS_Admin {
 	/**
 	 * wp_generate_attachment_metadata过滤器
 	 * 
+	 * 将生成的中间级图片上传至百度云存储
+	 * 删除本地文件
+	 * 
 	 * @param array $data
 	 * @param int $post_id
 	 */
-	function wp_generate_attachment_metadata( $data, $post_id ) {
+	function wp_generate_attachment_metadata( $data) {
+		$uploads = wp_upload_dir();
+		$file = trailingslashit($uploads['basedir']) . $data['file'];
+		$info = pathinfo($file);
+		$dir = trailingslashit($info['dirname']);
+		
+		foreach ($data['sizes'] as $key => $value) {
+			$sized_file_name = $value['file'];
+			$sized_file = $dir  . $sized_file_name;
+			$object = _wp_relative_upload_path($sized_file);
+			$object = '/' . ltrim($object, '/');
+			if($this->upload_file_to_bcs($object, $sized_file)) {
+				unlink($sized_file);
+			} else {
+				unset($data['sizes'][$key]);
+			}
+		}
+		unlink($file);
+		
 		return $data;
 	}
 

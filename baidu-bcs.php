@@ -12,12 +12,12 @@ License: GPLv2
 if ( ! defined( 'WPINC' ) )
 	die();
 
-if (!defined('BAIDU_BCS_INC_DIR')) define('BAIDU_BCS_INC_DIR', plugin_dir_path(__FILE__) . 'includes');
+if ( ! defined( 'BAIDU_BCS_INC_DIR' ) )
+	define( 'BAIDU_BCS_INC_DIR', plugin_dir_path( __FILE__ ) . 'includes' );
 
 if ( ! defined( 'BAIDU_BCS_SDK_DIR' ) )
 	define( 'BAIDU_BCS_SDK_DIR', BAIDU_BCS_INC_DIR . '/Baidu-BCS-SDK' );
 
-if (is_admin()) {
-	require_once BAIDU_BCS_INC_DIR . '/class-baidu-bcs-admin.php';
-	new Baidu_BCS_Admin();
-}
+require_once BAIDU_BCS_INC_DIR . '/class-baidu-bcs-plugin.php';
+
+new Baidu_BCS_Plugin();

@@ -1,16 +1,15 @@
 <?php
-
 require_once BAIDU_BCS_SDK_DIR . '/bcs.class.php';
 
 /**
- * 百度云存储管理类。
+ * 百度云存储插件类。
  * 
  * 使用百度云存储API上传媒体文件。
  * 
  * @author Coda
  *
  */
-class Baidu_BCS_Admin {
+class Baidu_BCS_Plugin {
 
 	/**
 	 * @var 插件slug
@@ -41,17 +40,59 @@ class Baidu_BCS_Admin {
 	 * 构造函数
 	 */
 	function __construct() {
-			add_action( 'admin_init', array( $this, 'admin_init' ) );
-			add_action( 'admin_menu', array( $this, 'admin_menu' ) );
-			add_filter( 'wp_handle_upload', array( $this, 'wp_handle_upload' ) );
-			add_filter( 'wp_generate_attachment_metadata', array( $this, 'wp_generate_attachment_metadata' ) );
-			add_filter('option_upload_url_path', array($this, 'option_upload_url_path'));
+		$bucket_name = $this->get_bucket_name();
+		
+		if ( $bucket_name ) {
+			add_filter( 'option_upload_url_path', array( $this, 'option_upload_url_path' ) );
+		}
+		
+		if ( is_admin() ) {
+			add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
+			add_action( 'admin_init', array( $this, 'register_settings' ) );
+			if ( $bucket_name ) {
+				add_filter( 'wp_handle_upload', array( $this, 'wp_handle_upload' ) );
+				add_filter( 'wp_generate_attachment_metadata', array( $this, 'wp_generate_attachment_metadata' ) );
+				add_filter( 'wp_delete_file', array( $this, 'wp_delete_file' ) );
+			} else {
+				add_action( 'admin_notices', array( $this, 'admin_notices' ) );
+			}
+		}
+	}
+
+	/**
+	 * wp_delete_file过滤器
+	 * 
+	 * @param string $file
+	 * @return string
+	 */
+	function wp_delete_file( $file ) {
+		$object = _wp_relative_upload_path( $file );
+		$object = '/' . ltrim( $object, '/' );
+		$this->delete_file_from_bcs( $object );
+		return $file;
+	}
+
+	/**
+	 * 删除bcs文件
+	 * 
+	 * @param string $object
+	 */
+	function delete_file_from_bcs( $object ) {
+		$this->get_BaiduBCS()->delete_object( $this->get_bucket_name(), $object );
+	}
+
+	function admin_notices() {
+		?>
+<div class="updated">
+	<p>请先设置bucket名</p>
+</div>
+<?php
 	}
 
 	/**
 	 * 添加设置菜单
 	 */
-	function admin_menu() {
+	function add_admin_menu() {
 		add_options_page( 
 			'百度云存储设置', 
 			'百度云存储', 
@@ -59,21 +100,14 @@ class Baidu_BCS_Admin {
 			self::PLUGIN_SLUG, 
 			array( $this, 'display_settings_page' ) );
 	}
-	
+
 	/**
 	 * 获取bucket路径
 	 * @param string $url
 	 * @return string
 	 */
-	function option_upload_url_path($url) {
+	function option_upload_url_path( $url ) {
 		return 'http://' . BaiduBCS::DEFAULT_URL . '/' . $this->get_bucket_name();
-	}
-
-	/**
-	 * 管理员初始化
-	 */
-	function admin_init() {
-		$this->register_settings();
 	}
 
 	/**
@@ -102,7 +136,6 @@ class Baidu_BCS_Admin {
 			$file['error'] = '上传文件失败,请检查';
 		}
 		
-		
 		return $file;
 	}
 
@@ -115,24 +148,24 @@ class Baidu_BCS_Admin {
 	 * @param array $data
 	 * @param int $post_id
 	 */
-	function wp_generate_attachment_metadata( $data) {
+	function wp_generate_attachment_metadata( $data ) {
 		$uploads = wp_upload_dir();
-		$file = trailingslashit($uploads['basedir']) . $data['file'];
-		$info = pathinfo($file);
-		$dir = trailingslashit($info['dirname']);
+		$file = trailingslashit( $uploads['basedir'] ) . $data['file'];
+		$info = pathinfo( $file );
+		$dir = trailingslashit( $info['dirname'] );
 		
-		foreach ($data['sizes'] as $key => $value) {
+		foreach ( $data['sizes'] as $key => $value ) {
 			$sized_file_name = $value['file'];
-			$sized_file = $dir  . $sized_file_name;
-			$object = _wp_relative_upload_path($sized_file);
-			$object = '/' . ltrim($object, '/');
-			if($this->upload_file_to_bcs($object, $sized_file)) {
-				unlink($sized_file);
+			$sized_file = $dir . $sized_file_name;
+			$object = _wp_relative_upload_path( $sized_file );
+			$object = '/' . ltrim( $object, '/' );
+			if ( $this->upload_file_to_bcs( $object, $sized_file ) ) {
+				unlink( $sized_file );
 			} else {
-				unset($data['sizes'][$key]);
+				unset( $data['sizes'][$key] );
 			}
 		}
-		unlink($file);
+		unlink( $file );
 		
 		return $data;
 	}
@@ -154,10 +187,21 @@ class Baidu_BCS_Admin {
 		return $res->isOK();
 	}
 
+	/**
+	 * 获取文件的URL
+	 * 
+	 * @param string $object
+	 * @return string
+	 */
 	function get_object_url( $object ) {
 		return 'http://' . BaiduBCS::DEFAULT_URL . '/' . $this->get_bucket_name() . $object;
 	}
 
+	/**
+	 * 获取bucket名
+	 * 
+	 * @return string
+	 */
 	function get_bucket_name() {
 		if ( ! $this->bucket_name ) {
 			$this->bucket_name = get_option( self::OPTION_BUCKET_NAME );
@@ -222,7 +266,7 @@ class Baidu_BCS_Admin {
         <?php
 			foreach ( $names as $value ) {
 				$selected = ( $value == $this->get_bucket_name() ) ? 'selected="selected"' : '';
-				?><option>请选择</option>
+				?><option value="">请选择</option>
 							<option value="<?php echo $value; ?>" <?php echo $selected; ?>><?php echo $value; ?></option><?php
 			}
 			?>

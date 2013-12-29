@@ -49,18 +49,92 @@ class Baidu_BCS_Plugin {
 		}
 		
 		if ( is_admin() ) {
-			add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
-			add_action( 'admin_init', array( $this, 'register_settings' ) );
+			add_action( 'admin_menu', array( $this, 'admin_menu' ) );
+			add_action( 'admin_init', array( $this, 'admin_init' ) );
 			add_filter( 'plugin_action_links_' . $this->plugin_name, array( $this, 'plugin_action_links' ) );
 			
 			if ( $this->bucket_name ) {
 				add_filter( 'wp_handle_upload', array( $this, 'wp_handle_upload' ) );
-				add_filter( 'wp_generate_attachment_metadata', array( $this, 'wp_generate_attachment_metadata' ) );
 				add_filter( 'wp_delete_file', array( $this, 'wp_delete_file' ) );
+				add_filter( 'wp_save_image_editor_file', array( $this, 'wp_save_image_editor_file' ), 10, 4 );
+				add_filter( 'wp_update_attachment_metadata', array( $this, 'wp_update_attachment_metadata' ) );
+				add_filter( 'wp_create_file_in_uploads', array( $this, 'wp_create_file_in_uploads' ) );
 			} else {
 				add_action( 'admin_notices', array( $this, 'admin_notices' ) );
 			}
 		}
+	}
+
+	/**
+	 * wp_create_file_in_uploads filter
+	 * 
+	 * @param string $file
+	 * @return string
+	 */
+	function wp_create_file_in_uploads( $file ) {
+		$this->upload_file_to_bcs( $file );
+		
+		return $file;
+	}
+
+	/**
+	 * admin_init action
+	 */
+	function admin_init() {
+		$this->register_settings();
+	}
+
+	/**
+	 * wp_save_image_editor_file filter
+	 * 
+	 * @param null $value
+	 * @param string $filename
+	 * @param WP_Image_Editor $image
+	 * @param string $mime_type
+	 * @param int $post_id
+	 * @return boolean
+	 */
+	function wp_save_image_editor_file( $value, $filename, $image, $mime_type ) {
+		$result = $image->save( $filename, $mime_type );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		
+		$object = $this->upload_file_to_bcs( $filename );
+		
+		return ! ! $object;
+	}
+
+	/**
+	 * wp_update_attachment_metadata filter
+	 * 
+	 * 上传中间级图片后删除本地图片
+	 * 
+	 * @param array $data
+	 * @param int $post_id
+	 */
+	function wp_update_attachment_metadata( $data ) {
+		$uploads = wp_upload_dir();
+		$file = trailingslashit( $uploads['basedir'] ) . $data['file'];
+		$info = pathinfo( $file );
+		$dir = trailingslashit( $info['dirname'] );
+		
+		foreach ( $data['sizes'] as $key => $value ) {
+			$sized_file_name = $value['file'];
+			$sized_file = $dir . $sized_file_name;
+			
+			if ( file_exists( $sized_file ) ) {
+				if ( $this->upload_file_to_bcs( $sized_file ) ) {
+				} else {
+					unset( $data['sizes'][$key] );
+				}
+				@unlink( $sized_file );
+			}
+		}
+		
+		@unlink( $file );
+		
+		return $data;
 	}
 
 	/**
@@ -76,7 +150,7 @@ class Baidu_BCS_Plugin {
 	}
 
 	/**
-	 * wp_delete_file过滤器
+	 * wp_delete_file filter
 	 * 
 	 * @param string $file
 	 * @return string
@@ -84,19 +158,14 @@ class Baidu_BCS_Plugin {
 	function wp_delete_file( $file ) {
 		$object = _wp_relative_upload_path( $file );
 		$object = '/' . ltrim( $object, '/' );
-		$this->delete_file_from_bcs( $object );
+		$this->get_BaiduBCS()->delete_object( $this->bucket_name, $object );
+		
 		return $file;
 	}
 
 	/**
-	 * 删除bcs文件
-	 * 
-	 * @param string $object
+	 * admin_notices action
 	 */
-	function delete_file_from_bcs( $object ) {
-		$this->get_BaiduBCS()->delete_object( $this->bucket_name, $object );
-	}
-
 	function admin_notices() {
 		global $pagenow;
 		if ( $pagenow == 'plugins.php' ) {
@@ -112,9 +181,9 @@ class Baidu_BCS_Plugin {
 	}
 
 	/**
-	 * 添加设置菜单
+	 * admin_menu action
 	 */
-	function add_admin_menu() {
+	function admin_menu() {
 		add_options_page( 
 			'百度云存储设置', 
 			'百度云存储', 
@@ -124,7 +193,7 @@ class Baidu_BCS_Plugin {
 	}
 
 	/**
-	 * option_upload_url_path过滤器
+	 * option_upload_url_path filter
 	 * 
 	 * @param string $url
 	 * @return string
@@ -137,89 +206,62 @@ class Baidu_BCS_Plugin {
 	 * 注册设置
 	 */
 	function register_settings() {
-		register_setting( self::OPTION_GROUP, self::OPTION_BUCKET_NAME, array($this, 'vaildate_bucket_name') );
+		register_setting( self::OPTION_GROUP, self::OPTION_BUCKET_NAME, array( $this, 'vaildate_bucket_name' ) );
 	}
-	
+
 	/**
 	 * 验证bucket名
 	 * 
 	 * @param string $value
 	 * @return string
 	 */
-	function vaildate_bucket_name($value) {
-		$res = $this->get_BaiduBCS()->list_object($value);
+	function vaildate_bucket_name( $value ) {
+		$res = $this->get_BaiduBCS()->list_object( $value );
+		
 		return $res->isOK() ? $value : '';
 	}
 
 	/**
-	 * wp_handle_upload过滤器
+	 * wp_handle_upload filter
 	 * 
 	 * 将上传至本地的文件传至百度云存储
 	 * 
-	 * @param array $file
+	 * @param array $data
 	 * @return array
 	 */
-	function wp_handle_upload( $file ) {
-		$file_path = $file['file'];
-		$object = _wp_relative_upload_path( $file_path );
-		$object = '/' . ltrim( $object, '/' );
+	function wp_handle_upload( $data ) {
+		$file = $data['file'];
 		
-		if ( $this->upload_file_to_bcs( $object, $file_path ) ) {
-			$file['url'] = $this->get_object_url( $object );
+		$object = $this->upload_file_to_bcs( $file );
+		
+		if ( $object ) {
+			$data['url'] = $this->get_object_url( $object );
 		} else {
 			$file['error'] = '上传文件失败,请检查';
+			@unlink( $file );
 		}
-		
-		return $file;
-	}
-
-	/**
-	 * wp_generate_attachment_metadata过滤器
-	 * 
-	 * 将生成的中间级图片上传至百度云存储
-	 * 删除本地文件
-	 * 
-	 * @param array $data
-	 * @param int $post_id
-	 */
-	function wp_generate_attachment_metadata( $data ) {
-		$uploads = wp_upload_dir();
-		$file = trailingslashit( $uploads['basedir'] ) . $data['file'];
-		$info = pathinfo( $file );
-		$dir = trailingslashit( $info['dirname'] );
-		
-		foreach ( $data['sizes'] as $key => $value ) {
-			$sized_file_name = $value['file'];
-			$sized_file = $dir . $sized_file_name;
-			$object = _wp_relative_upload_path( $sized_file );
-			$object = '/' . ltrim( $object, '/' );
-			if ( $this->upload_file_to_bcs( $object, $sized_file ) ) {
-				unlink( $sized_file );
-			} else {
-				unset( $data['sizes'][$key] );
-			}
-		}
-		unlink( $file );
 		
 		return $data;
 	}
 
 	/**
 	 * 上传文件至百度云存储
-	 * @param string $object 文件名
+	 * 
 	 * @param string $file 本地文件路径
 	 * @param boolean $public 是否为公开文件
-	 * @return boolean 成功返回 true, 否则为false
+	 * @return null | string 成功返回对象名，否则返回null
 	 */
-	function upload_file_to_bcs( $object, $file ) {
-		$opt = array();
+	function upload_file_to_bcs( $file ) {
+		$object = _wp_relative_upload_path( $file );
+		$object = '/' . ltrim( $object, '/' );
+		
 		$res = $this->get_BaiduBCS()->create_object( 
 			$this->bucket_name, 
 			$object, 
 			$file, 
 			array( 'acl' => BaiduBCS::BCS_SDK_ACL_TYPE_PUBLIC_READ ) );
 		
-		return $res->isOK();
+		return $res->isOK() ? $object : null;
 	}
 
 	/**
@@ -241,6 +283,7 @@ class Baidu_BCS_Plugin {
 		if ( ! $this->baiduBCS ) {
 			$this->baiduBCS = new BaiduBCS();
 		}
+		
 		return $this->baiduBCS;
 	}
 

@@ -126,8 +126,7 @@ class Baidu_BCS_Plugin {
 			$sized_file = $dir . $sized_file_name;
 			
 			if ( file_exists( $sized_file ) ) {
-				if ( $this->upload_file_to_bcs( $sized_file ) ) {
-				} else {
+				if ( ! $this->upload_file_to_bcs( $sized_file ) ) {
 					unset( $data['sizes'][$key] );
 				}
 				@unlink( $sized_file );
@@ -250,7 +249,6 @@ class Baidu_BCS_Plugin {
 	 * 上传文件至百度云存储
 	 * 
 	 * @param string $file 本地文件路径
-	 * @param boolean $public 是否为公开文件
 	 * @return null | string 成功返回对象名，否则返回null
 	 */
 	function upload_file_to_bcs( $file ) {

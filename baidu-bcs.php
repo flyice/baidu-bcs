@@ -20,4 +20,4 @@ if ( ! defined( 'BAIDU_BCS_SDK_DIR' ) )
 
 require_once BAIDU_BCS_INC_DIR . '/class-baidu-bcs-plugin.php';
 
-new Baidu_BCS_Plugin(__FILE__);
+new Baidu_BCS_Plugin( __FILE__ );

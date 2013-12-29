@@ -72,7 +72,9 @@ class Baidu_BCS_Plugin {
 	 * @return string
 	 */
 	function wp_create_file_in_uploads( $file ) {
-		$this->upload_file_to_bcs( $file );
+		if ( file_exists( $file ) ) {
+			$this->upload_file_to_bcs( $file );
+		}
 		
 		return $file;
 	}

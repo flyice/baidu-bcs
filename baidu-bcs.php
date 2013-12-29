@@ -3,7 +3,7 @@
 /**
 Plugin Name: 百度云存储
 Plugin URI:
-Description: WordPress百度云存储支持。
+Description: WordPress百度云存储插件。
 Version: 0.1
 Author: flyice
 Author URI:

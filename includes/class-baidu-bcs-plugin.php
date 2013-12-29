@@ -2,9 +2,8 @@
 require_once BAIDU_BCS_SDK_DIR . '/bcs.class.php';
 
 /**
- * 百度云存储插件类。
+ * 百度云存储插件。
  * 
- * 使用百度云存储API上传媒体文件。
  * 
  * @author flyice
  *
@@ -138,7 +137,18 @@ class Baidu_BCS_Plugin {
 	 * 注册设置
 	 */
 	function register_settings() {
-		register_setting( self::OPTION_GROUP, self::OPTION_BUCKET_NAME );
+		register_setting( self::OPTION_GROUP, self::OPTION_BUCKET_NAME, array($this, 'vaildate_bucket_name') );
+	}
+	
+	/**
+	 * 验证bucket名
+	 * 
+	 * @param string $value
+	 * @return string
+	 */
+	function vaildate_bucket_name($value) {
+		$res = $this->get_BaiduBCS()->list_object($value);
+		return $res->isOK() ? $value : '';
 	}
 
 	/**
